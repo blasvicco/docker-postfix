@@ -52,8 +52,9 @@ done < /tmp/passwd
 chown postfix.sasl /etc/sasldb2
 
 ############
-# Enable TLS
+# Enable TLS and SSL
 ############
+python3 /opt/parse_resty_auto_ssl.py
 if [[ -n "$(find /etc/postfix/certs -iname *.crt)" && -n "$(find /etc/postfix/certs -iname *.key)" ]]; then
   # /etc/postfix/main.cf
   postconf -e smtpd_tls_cert_file=$(find /etc/postfix/certs -iname *.crt)
@@ -62,10 +63,15 @@ if [[ -n "$(find /etc/postfix/certs -iname *.crt)" && -n "$(find /etc/postfix/ce
   # /etc/postfix/master.cf
   postconf -M submission/inet="submission   inet   n   -   n   -   -   smtpd"
   postconf -P "submission/inet/syslog_name=postfix/submission"
-  postconf -P "submission/inet/smtpd_tls_security_level=encrypt"
+  postconf -P "submission/inet/smtpd_tls_security_level=may"
   postconf -P "submission/inet/smtpd_sasl_auth_enable=yes"
   postconf -P "submission/inet/milter_macro_daemon_name=ORIGINATING"
   postconf -P "submission/inet/smtpd_recipient_restrictions=permit_sasl_authenticated,reject_unauth_destination"
+
+  postconf -M smtps/inet="smtps   inet   n   -   n   -   -   smtpd"
+  postconf -P "smtps/inet/syslog_name=postfix/smtps"
+  postconf -P "smtps/inet/smtpd_tls_wrappermode=yes"
+  postconf -P "smtps/inet/smtpd_sasl_auth_enable=yes"
 fi
 
 #############
