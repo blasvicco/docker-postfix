@@ -59,19 +59,32 @@ if [[ -n "$(find /etc/postfix/certs -iname *.crt)" && -n "$(find /etc/postfix/ce
   # /etc/postfix/main.cf
   postconf -e smtpd_tls_cert_file=$(find /etc/postfix/certs -iname *.crt)
   postconf -e smtpd_tls_key_file=$(find /etc/postfix/certs -iname *.key)
+  postconf -e smtpd_tls_protocols=TLSv1.2,TLSv1.1,!TLSv1,!SSLv2,!SSLv3
+  postconf -e smtp_tls_protocols=TLSv1.2,TLSv1.1,!TLSv1,!SSLv2,!SSLv3
+  postconf -e smtpd_tls_ciphers=high
+  postconf -e smtp_tls_ciphers=high
+  postconf -e smtpd_tls_mandatory_protocols=TLSv1.2,TLSv1.1,!TLSv1,!SSLv2,!SSLv3
+  postconf -e smtp_tls_mandatory_protocols=TLSv1.2,TLSv1.1,!TLSv1,!SSLv2,!SSLv3
+  postconf -e smtpd_tls_mandatory_ciphers=high
+  postconf -e smtp_tls_mandatory_ciphers=high
+  postconf -e smtpd_tls_mandatory_exclude_ciphers=MD5,DES,ADH,RC4,PSD,SRP,3DES,eNULL,aNULL
+  postconf -e smtp_tls_mandatory_exclude_ciphers=MD5,DES,ADH,RC4,PSD,SRP,3DES,eNULL,aNULL
+  postconf -e smtpd_tls_exclude_ciphers=MD5,DES,ADH,RC4,PSD,SRP,3DES,eNULL,aNULL
+  postconf -e smtp_tls_exclude_ciphers=MD5,DES,ADH,RC4,PSD,SRP,3DES,eNULL,aNULL
+  postconf -e smtpd_tls_security_level=encrypt
+  postconf -e smtp_tls_security_level=encrypt
+  postconf -e smtpd_tls_loglevel=2
+  postconf -e smtp_tls_loglevel=2
+  postconf -e tls_preempt_cipherlist=yes
   chmod 400 /etc/postfix/certs/*.*
   # /etc/postfix/master.cf
   postconf -M submission/inet="submission   inet   n   -   n   -   -   smtpd"
   postconf -P "submission/inet/syslog_name=postfix/submission"
-  postconf -P "submission/inet/smtpd_tls_security_level=may"
-  postconf -P "submission/inet/smtpd_sasl_auth_enable=yes"
   postconf -P "submission/inet/milter_macro_daemon_name=ORIGINATING"
   postconf -P "submission/inet/smtpd_recipient_restrictions=permit_sasl_authenticated,reject_unauth_destination"
 
   postconf -M smtps/inet="smtps   inet   n   -   n   -   -   smtpd"
   postconf -P "smtps/inet/syslog_name=postfix/smtps"
-  postconf -P "smtps/inet/smtpd_tls_wrappermode=yes"
-  postconf -P "smtps/inet/smtpd_sasl_auth_enable=yes"
 fi
 
 #############
