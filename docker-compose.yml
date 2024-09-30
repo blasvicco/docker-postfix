@@ -1,0 +1,20 @@
+services:
+  smtp:
+    build:
+      context: .
+      dockerfile: ./hub/alpine/Dockerfile
+    command: 'tail -f /dev/null'
+    container_name: postfix
+    env_file:
+      - ./docker/.env.example
+    ports:
+      - "25:25"
+      - "465:465"
+      - '587:587'
+    volumes:
+      - ./docker/parse_resty_auto_ssl.py:/root/parse_resty_auto_ssl.py
+      - ./docker/setup.sh:/root/setup.sh
+      - ./data/.users.example:/tmp/passwd
+      - ./data/opendkim/domainkey:/etc/opendkim/domainkey
+      - ./data/restry-auto-ssl/example01.com:/etc/resty-auto-ssl/storage/file/example01.com%3Alatest
+      - ./data/restry-auto-ssl/example02.com:/etc/resty-auto-ssl/storage/file/example02.com%3Alatest

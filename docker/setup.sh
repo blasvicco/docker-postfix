@@ -1,64 +1,51 @@
-#!/bin/bash
+#!/bin/sh
 
-#judgement
-if [[ -a /etc/supervisor/conf.d/supervisord.conf ]]; then
-  exit 0
-fi
+# creating files and directories
+mkdir -p /etc/opendkim/domainkey/
+mkdir -p /etc/postfix/sasl/
+mkdir -p /run/opendkim
+touch /etc/postfix/main.cf
+touch /etc/postfix/master.cf
+touch /etc/postfix/sasl/smtpd.conf
 
-#supervisor
-cat > /etc/supervisor/conf.d/supervisord.conf <<EOF
-[supervisord]
-nodaemon=true
+########################
+#  Setting up SASL DB  #
+########################
+while IFS=':' read -r _domain _user _pwd _cannonical; do
+  echo $_pwd | saslpasswd2 -p -c -u $_domain $_user
+done < /tmp/passwd
+chown postfix:postfix /etc/sasldb2
 
-[program:postfix]
-command=/opt/postfix.sh
-
-[program:rsyslog]
-command=/usr/sbin/rsyslogd -n -c3
-EOF
-
-############
-#  postfix
-############
-cat >> /opt/postfix.sh <<EOF
-#!/bin/bash
-service postfix start
-tail -f /var/log/mail.log
-EOF
-chmod +x /opt/postfix.sh
-postconf -e myhostname=$maildomain
+########################
+#  Setting up Postfix  #
+########################
+postconf -e myhostname=$maindomain
 postconf -F '*/*/chroot = n'
 
 ############
-# SASL SUPPORT FOR CLIENTS
 # The following options set parameters needed by Postfix to enable
 # Cyrus-SASL support for authentication of mail clients.
 ############
-# /etc/postfix/main.cf
-postconf -e smtpd_sasl_auth_enable=yes
-postconf -e broken_sasl_auth_clients=yes
-postconf -e smtpd_recipient_restrictions=permit_sasl_authenticated,reject_unauth_destination
 # smtpd.conf
 cat >> /etc/postfix/sasl/smtpd.conf <<EOF
 pwcheck_method: auxprop
 auxprop_plugin: sasldb
 mech_list: PLAIN LOGIN CRAM-MD5 DIGEST-MD5 NTLM
 EOF
-# sasldb2
-echo $smtp_user | tr , \\n > /tmp/passwd
-while IFS=':' read -r _user _pwd; do
-  echo $_pwd | saslpasswd2 -p -c -u $maildomain $_user
-done < /tmp/passwd
-chown postfix.sasl /etc/sasldb2
+# /etc/postfix/main.cf
+postconf -e smtpd_sasl_auth_enable=yes
+postconf -e broken_sasl_auth_clients=yes
+postconf -e smtpd_recipient_restrictions=permit_sasl_authenticated,reject_unauth_destination
 
-############
-# Enable TLS and SSL
-############
-python3 /opt/parse_resty_auto_ssl.py
-if [[ -n "$(find /etc/postfix/certs -iname *.crt)" && -n "$(find /etc/postfix/certs -iname *.key)" ]]; then
+######################
+# Enable TLS and SSL #
+######################
+./parse_resty_auto_ssl.py
+postmap -F lmdb:/etc/postfix/ssl_map
+if [[ -n "/etc/postfix/certs/$maindomain.key" && -n "/etc/postfix/certs/$maindomain.crt" ]]; then
   # /etc/postfix/main.cf
-  postconf -e smtpd_tls_cert_file=$(find /etc/postfix/certs -iname *.crt)
-  postconf -e smtpd_tls_key_file=$(find /etc/postfix/certs -iname *.key)
+  postconf -e smtpd_tls_key_file=/etc/postfix/certs/$maindomain.key
+  postconf -e smtpd_tls_cert_file=/etc/postfix/certs/$maindomain.crt
   postconf -e smtpd_tls_protocols=TLSv1.2,TLSv1.1,!TLSv1,!SSLv2,!SSLv3
   postconf -e smtp_tls_protocols=TLSv1.2,TLSv1.1,!TLSv1,!SSLv2,!SSLv3
   postconf -e smtpd_tls_ciphers=high
@@ -76,6 +63,7 @@ if [[ -n "$(find /etc/postfix/certs -iname *.crt)" && -n "$(find /etc/postfix/ce
   postconf -e smtpd_tls_loglevel=2
   postconf -e smtp_tls_loglevel=2
   postconf -e tls_preempt_cipherlist=yes
+  postconf -e tls_server_sni_maps=lmdb:/etc/postfix/ssl_map
   chmod 400 /etc/postfix/certs/*.*
   # /etc/postfix/master.cf
   postconf -M submission/inet="submission   inet   n   -   n   -   -   smtpd"
@@ -87,25 +75,34 @@ if [[ -n "$(find /etc/postfix/certs -iname *.crt)" && -n "$(find /etc/postfix/ce
   postconf -P "smtps/inet/syslog_name=postfix/smtps"
 fi
 
-#############
-#  opendkim
-#############
+###############################
+# Setting up sender canonical #
+###############################
+while IFS=':' read -r _domain _user _pwd _cannonical; do
+  echo "/$_cannonical/ $_user" >> /etc/postfix/sender_canonical
+  echo "/From:$_cannonical/ REPLACE From: $_user" >> /etc/postfix/header_checks
+done < /tmp/passwd
 
-if [[ -z "$(find /etc/opendkim/domainkeys -iname *.private)" ]]; then
-  exit 0
-fi
-cat >> /etc/supervisor/conf.d/supervisord.conf <<EOF
+postconf -e sender_canonical_classes=envelope_sender,header_sender
+postconf -e sender_canonical_maps=regexp:/etc/postfix/sender_canonical
+postconf -e smtp_header_checks=regexp:/etc/postfix/header_checks
 
-[program:opendkim]
-command=/usr/sbin/opendkim -f
-EOF
+#####################
+# Setting up loggin #
+#####################
+postconf -e maillog_file=/var/log/postfix.log
+postconf -e maillog_file_permissions=0644
+
+##############
+#  opendkim  #
+##############
 # /etc/postfix/main.cf
 postconf -e milter_protocol=2
 postconf -e milter_default_action=accept
 postconf -e smtpd_milters=inet:localhost:12301
 postconf -e non_smtpd_milters=inet:localhost:12301
 
-cat >> /etc/opendkim.conf <<EOF
+cat >> /etc/opendkim/opendkim.conf <<EOF
 AutoRestart             Yes
 AutoRestartRate         10/1h
 UMask                   002
@@ -128,22 +125,23 @@ UserID                  opendkim:opendkim
 
 Socket                  inet:12301@localhost
 EOF
-cat >> /etc/default/opendkim <<EOF
-SOCKET="inet:12301@localhost"
-EOF
 
 cat >> /etc/opendkim/TrustedHosts <<EOF
 127.0.0.1
 localhost
 192.168.0.1/24
+EOF
 
-*.$maildomain
-EOF
-cat >> /etc/opendkim/KeyTable <<EOF
-mail._domainkey.$maildomain $maildomain:mail:$(find /etc/opendkim/domainkeys -iname *.private)
-EOF
-cat >> /etc/opendkim/SigningTable <<EOF
-*@$maildomain mail._domainkey.$maildomain
-EOF
-chown opendkim:opendkim $(find /etc/opendkim/domainkeys -iname *.private)
-chmod 400 $(find /etc/opendkim/domainkeys -iname *.private)
+OLDIFS=$IFS
+IFS=','
+for domain in $maildomains; do
+  echo "*.$domain" >> /etc/opendkim/TrustedHosts
+  echo "mail._domainkey.$domain $domain:mail:/etc/opendkim/domainkey/$domain.private" >> /etc/opendkim/KeyTable
+  echo "*@$domain mail._domainkey.$domain" >> /etc/opendkim/SigningTable
+  if [ ! -f /etc/opendkim/domainkey/$domain.private ]; then
+    opendkim-genkey -b 1024 -d $domain -D /etc/opendkim/domainkey -s $domain -v
+    chown opendkim:opendkim /etc/opendkim/domainkey/$domain.private
+    chmod 400 /etc/opendkim/domainkey/$domain.private
+  fi
+done
+IFS=$OLDIFS
