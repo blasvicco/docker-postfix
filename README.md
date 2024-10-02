@@ -1,51 +1,93 @@
 docker-postfix
 ==============
 
-run postfix with smtp authentication (sasldb) in a docker container.
-TLS and OpenDKIM support are optional.
-
-## Requirement
-+ Docker 1.0
+Postfix with SMTP authentication (SASLdb) in a Docker container.
+TLS and OpenDKIM are also supported.
+With a simple environment and configuration file, you can set up multiple domains and email addresses.
+The settings allow you to forward incoming emails to other addresses, such as Gmail.
+This option can be useful if you want to use Google Gmail with your own email domain.
 
 ## Installation
 1. Build image
 
 	```bash
-	$ sudo docker pull catatnight/postfix
+	$ docker compose build
 	```
 
-## Usage
-1. Create postfix container with smtp authentication
+## Configure the service:
+There are two important files:
+1. One for the environment, which should contain two variables:
+```
+maindomain=example01.com
+maildomains=example01.com,example02.com
+```
+The `maindomain`, as its name indicates, should be the main domain of your server and will be used to set the Postfix variable `myhostname`.
+The second variable, `maildomains`, is the list of domains that you want Postfix to support. This value will be used to set the Postfix `virtual_alias_domains`.
+It will also be used by OpenDKIM to generate the required keys for each domain.
+Please check the example file `docker/.env.example`.
 
-	```bash
-	$ sudo docker run -p 25:25 \
-			-e maildomain=mail.example.com -e smtp_user=user:pwd \
-			--name postfix -d catatnight/postfix
-	# Set multiple user credentials: -e smtp_user=user1:pwd1,user2:pwd2,...,userN:pwdN
-	```
-2. Enable OpenDKIM: save your domain key ```.private``` in ```/path/to/domainkeys```
+2. The second file is the list of users/emails that need to be created. We use a Docker volume to sync this file into the container path /tmp/passwd.
+The file follows this format:
+```
+_domain:_user:_password:_cannonical
+example01.com:info@example01.com:somepassword:info.example01@gmail.com
+```
+The content of this file is used to set up the SASL DB (`/etc/sasldb2`).
+Additionally, it sets the Postfix `sender_canonical` and `header_checks` variables, which replace outgoing emails `_canonical` `From` values with the email address for our domain `_user`.
+Please check the example file `data/.users.example`.
 
-	```bash
-	$ sudo docker run -p 25:25 \
-			-e maildomain=mail.example.com -e smtp_user=user:pwd \
-			-v /path/to/domainkeys:/etc/opendkim/domainkeys \
-			--name postfix -d catatnight/postfix
-	```
-3. Enable TLS(587): save your SSL certificates ```.key``` and ```.crt``` to  ```/path/to/certs```
 
-	```bash
-	$ sudo docker run -p 587:587 \
-			-e maildomain=mail.example.com -e smtp_user=user:pwd \
-			-v /path/to/certs:/etc/postfix/certs \
-			--name postfix -d catatnight/postfix
-	```
+## Start the service
+All the service configurations will be performed by simply running the `setup.sh` script inside the container. This script will read the environment variables and the user list file to generate the required Postfix and OpenDKIM configuration files.
+The steps to follow are:
+```BASH
+# login to the container
+docker exec -it postfix sh
 
-## Note
-+ Login credential should be set to (`username@mail.example.com`, `password`) in Smtp Client
-+ You can assign the port of MTA on the host machine to one other than 25 ([postfix how-to](http://www.postfix.org/MULTI_INSTANCE_README.html))
-+ Read the reference below to find out how to generate domain keys and add public key to the domain's DNS records
+# when you get the container prompt then you run the setup script:
+./setup.sh
 
-## Reference
-+ [Postfix SASL Howto](http://www.postfix.org/SASL_README.html)
-+ [How To Install and Configure DKIM with Postfix on Debian Wheezy](https://www.digitalocean.com/community/articles/how-to-install-and-configure-dkim-with-postfix-on-debian-wheezy)
-+ TBD
+# After the setup we launch the service in this order
+syslogd # optional to capture opemdkim logs
+opemdkim # start the opmkdim service
+postfix start # to start postfix
+```
+
+You can check if the services started properly by tailing the logs:
+```BASH
+tail -f /var/log/messages # sys log where you can find details about openkdim service
+tail -f /var/log/postfix
+```
+
+## Setting up your DNS records:
+You can find plenty documentation about this on internet but basically to have a valid smtp server running you need 3 things:
+### SPF: It specifies a list of IP addresses where email messages are allowed to sent on behalf of that domain.
+For instance, if you want to be able to use your SMTP server to send email from a google gmail account, then you can do something like this:
+```
+Type: txt
+Name: @
+Data/Value: v=spf1 mx a include:_spf.google.com -all
+```
+You can use this generator: https://dmarcly.com/tools/spf-record-generator
+
+### DKIM: DKIM detects forged header fields and content in emails. DKIM enables the receiver to check if email headers and content have been altered in transit.
+The content of this records will be automatically generated by the `setup.sh` script and it will place it in the docker volume `data/opendkim/domainkey` with the name convention `{domain}.txt`.
+```
+Type: txt
+Name: mail._domainkey
+Data/Value: v=DKIM1; k=rsa; p={your_pub_key_generated_by_opendkim}
+```
+You can use this generator: https://dmarcly.com/tools/dkim-record-generator
+
+### DMARC: Domain-based Message Authentication Reporting & Conformance (DMARC) is an email security protocol.
+You can learn more about this here (https://www.fortinet.com/resources/cyberglossary/dmarc)
+Example:
+```
+Type: txt
+Name: _dmarc
+Data/Value: v=DMARC1; p=reject; rua=mailto:your_email@here.com; adkim=s; aspf=s;
+```
+You can use this generator: https://dmarcly.com/tools/dmarc-generator
+
+### My favorite validator:
+I use this exceptional validator https://www.learndmarc.com/ to see if everything is working as expected.
