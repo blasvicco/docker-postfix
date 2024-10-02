@@ -19,6 +19,7 @@ chown postfix:postfix /etc/sasldb2
 ########################
 #  Setting up Postfix  #
 ########################
+postmap -F /etc/postfix/aliases
 postconf -e myhostname=$maindomain
 postconf -F '*/*/chroot = n'
 
@@ -87,11 +88,20 @@ postconf -e sender_canonical_classes=envelope_sender,header_sender
 postconf -e sender_canonical_maps=regexp:/etc/postfix/sender_canonical
 postconf -e smtp_header_checks=regexp:/etc/postfix/header_checks
 
+##########################
+# Setting up fordwarding #
+##########################
+ALL_DOMAINS="${maildomains//,/ }"
+postconf -e virtual_alias_domains=$ALL_DOMAINS
+postconf -e virtual_alias_maps=lmdb:/etc/postfix/virtual
+while IFS=':' read -r _domain _user _pwd _cannonical; do
+  echo $_user $_cannonical >> /etc/postfix/virtual
+done < /tmp/passwd
+
 #####################
 # Setting up loggin #
 #####################
 postconf -e maillog_file=/var/log/postfix.log
-postconf -e maillog_file_permissions=0644
 
 ##############
 #  opendkim  #
@@ -102,7 +112,7 @@ postconf -e milter_default_action=accept
 postconf -e smtpd_milters=inet:localhost:12301
 postconf -e non_smtpd_milters=inet:localhost:12301
 
-cat >> /etc/opendkim/opendkim.conf <<EOF
+cat > /etc/opendkim/opendkim.conf <<EOF
 AutoRestart             Yes
 AutoRestartRate         10/1h
 UMask                   002
@@ -140,8 +150,8 @@ for domain in $maildomains; do
   echo "*@$domain mail._domainkey.$domain" >> /etc/opendkim/SigningTable
   if [ ! -f /etc/opendkim/domainkey/$domain.private ]; then
     opendkim-genkey -b 1024 -d $domain -D /etc/opendkim/domainkey -s $domain -v
-    chown opendkim:opendkim /etc/opendkim/domainkey/$domain.private
     chmod 400 /etc/opendkim/domainkey/$domain.private
   fi
+  chown opendkim:opendkim -R /etc/opendkim/domainkey
 done
 IFS=$OLDIFS

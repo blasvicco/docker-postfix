@@ -2,7 +2,7 @@ From alpine:latest
 
 # Defining packages to install
 ENV ESSENTIAL_PACKAGES="python3 postfix opendkim opendkim-utils" \
-    UTILITY_PACKAGES="mlocate vim" \
+    UTILITY_PACKAGES="busybox mlocate vim" \
     BUILDER_PACKAGES="g++ gdbm-dev make openssl-dev"
 
 # Installing packages
