@@ -3,18 +3,23 @@ services:
     build:
       context: .
       dockerfile: ./hub/alpine/Dockerfile
-    command: 'tail -f /dev/null'
+    # we push the log out so we can capture it by other service like fail2band
+    command: 'tail -f /var/log/postfix.log'
     container_name: postfix
     env_file:
+      # for production I switch this to ./docker/.env.prod
       - ./docker/.env.example
     ports:
       - "25:25"
       - "465:465"
       - '587:587'
     volumes:
-      - ./docker/parse_resty_auto_ssl.py:/root/parse_resty_auto_ssl.py
-      - ./docker/setup.sh:/root/setup.sh
       - ./data/.users.example:/tmp/passwd
       - ./data/opendkim/domainkey:/etc/opendkim/domainkey
+      # this is for dev purpose only, the scripts are being copied by the dockerfile build
+      - ./docker/parse_resty_auto_ssl.py:/root/parse_resty_auto_ssl.py
+      - ./docker/setup.sh:/root/setup.sh
+       # example to re use let's encrypt certificates
+       # you should re use the certificate volume instead
       - ./data/restry-auto-ssl/example01.com:/etc/resty-auto-ssl/storage/file/example01.com%3Alatest
       - ./data/restry-auto-ssl/example02.com:/etc/resty-auto-ssl/storage/file/example02.com%3Alatest

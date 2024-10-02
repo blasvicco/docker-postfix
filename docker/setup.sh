@@ -19,7 +19,6 @@ chown postfix:postfix /etc/sasldb2
 ########################
 #  Setting up Postfix  #
 ########################
-postmap -F /etc/postfix/aliases
 postconf -e myhostname=$maindomain
 postconf -F '*/*/chroot = n'
 
@@ -97,6 +96,7 @@ postconf -e virtual_alias_maps=lmdb:/etc/postfix/virtual
 while IFS=':' read -r _domain _user _pwd _cannonical; do
   echo $_user $_cannonical >> /etc/postfix/virtual
 done < /tmp/passwd
+postmap etc/postfix/virtual
 
 #####################
 # Setting up loggin #
