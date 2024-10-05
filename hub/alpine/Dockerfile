@@ -26,7 +26,6 @@ RUN mkdir -p /var/log && touch /var/log/postfix.log
 # setup user
 RUN addgroup --gid 1000 app-user && \
     adduser --disabled-password --no-create-home --gecos "" --home /root --ingroup app-user --uid 1000 app-user && \
-    addgroup app-user opendkim && \
     addgroup app-user postfix
 
 WORKDIR /root

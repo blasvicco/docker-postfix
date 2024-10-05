@@ -132,7 +132,7 @@ Mode                    sv
 PidFile                 /var/run/opendkim/opendkim.pid
 SignatureAlgorithm      rsa-sha256
 
-UserID                  opendkim:opendkim
+UserID                  app-user:app-user
 
 Socket                  inet:12301@localhost
 EOF
