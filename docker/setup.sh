@@ -14,7 +14,7 @@ touch /etc/postfix/sasl/smtpd.conf
 while IFS=':' read -r _domain _user _pwd _cannonical; do
   echo $_pwd | saslpasswd2 -p -c -u $_domain $_user
 done < /tmp/passwd
-chown app-user:postfix /etc/sasldb2
+chown postfix:postfix /etc/sasldb2
 
 ########################
 #  Setting up Postfix  #
@@ -97,7 +97,7 @@ postconf -e virtual_alias_maps=lmdb:/etc/postfix/virtual
 while IFS=':' read -r _domain _user _pwd _cannonical; do
   echo $_user $_cannonical >> /etc/postfix/virtual
 done < /tmp/passwd
-postmap etc/postfix/virtual
+postmap /etc/postfix/virtual
 
 #####################
 # Setting up loggin #
