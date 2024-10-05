@@ -153,6 +153,6 @@ for domain in $maildomains; do
     opendkim-genkey -b 1024 -d $domain -D /etc/opendkim/domainkey -s $domain -v
     chmod 400 /etc/opendkim/domainkey/$domain.private
   fi
-  chown app-user:opendkim -R /etc/opendkim/domainkey
+  chown app-user:app-user -R /etc/opendkim/domainkey
 done
 IFS=$OLDIFS
