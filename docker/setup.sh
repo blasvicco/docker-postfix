@@ -14,7 +14,7 @@ touch /etc/postfix/sasl/smtpd.conf
 while IFS=':' read -r _domain _user _pwd _cannonical; do
   echo $_pwd | saslpasswd2 -p -c -u $_domain $_user
 done < /tmp/passwd
-chown postfix:postfix /etc/sasldb2
+chown app-user:postfix /etc/sasldb2
 
 ########################
 #  Setting up Postfix  #
@@ -40,12 +40,14 @@ postconf -e smtpd_recipient_restrictions=permit_sasl_authenticated,reject_unauth
 ######################
 # Enable TLS and SSL #
 ######################
-./parse_resty_auto_ssl.py
+./map_ssl.py
 postmap -F lmdb:/etc/postfix/ssl_map
-if [[ -n "/etc/postfix/certs/$maindomain.key" && -n "/etc/postfix/certs/$maindomain.crt" ]]; then
+MAIN_KEY="/etc/letsencrypt/live/$maindomain/privkey.pem"
+MAIN_CRT="/etc/letsencrypt/live/$maindomain/fullchain.pem"
+if [[ -n $MAIN_KEY && -n $MAIN_CRT ]]; then
   # /etc/postfix/main.cf
-  postconf -e smtpd_tls_key_file=/etc/postfix/certs/$maindomain.key
-  postconf -e smtpd_tls_cert_file=/etc/postfix/certs/$maindomain.crt
+  postconf -e smtpd_tls_key_file=$MAIN_KEY
+  postconf -e smtpd_tls_cert_file=$MAIN_CRT
   postconf -e smtpd_tls_protocols=TLSv1.2,TLSv1.1,!TLSv1,!SSLv2,!SSLv3
   postconf -e smtp_tls_protocols=TLSv1.2,TLSv1.1,!TLSv1,!SSLv2,!SSLv3
   postconf -e smtpd_tls_ciphers=high
@@ -64,7 +66,6 @@ if [[ -n "/etc/postfix/certs/$maindomain.key" && -n "/etc/postfix/certs/$maindom
   postconf -e smtp_tls_loglevel=2
   postconf -e tls_preempt_cipherlist=yes
   postconf -e tls_server_sni_maps=lmdb:/etc/postfix/ssl_map
-  chmod 400 /etc/postfix/certs/*.*
   # /etc/postfix/master.cf
   postconf -M submission/inet="submission   inet   n   -   n   -   -   smtpd"
   postconf -P "submission/inet/syslog_name=postfix/submission"
@@ -152,6 +153,6 @@ for domain in $maildomains; do
     opendkim-genkey -b 1024 -d $domain -D /etc/opendkim/domainkey -s $domain -v
     chmod 400 /etc/opendkim/domainkey/$domain.private
   fi
-  chown opendkim:opendkim -R /etc/opendkim/domainkey
+  chown app-user:opendkim -R /etc/opendkim/domainkey
 done
 IFS=$OLDIFS

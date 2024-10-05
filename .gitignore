@@ -1,4 +1,4 @@
 .DS_Store
 .env.prod
 data/opendkim/*
-data/restry-auto-ssl
+data/.users.prod

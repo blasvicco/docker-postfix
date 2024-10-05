@@ -17,9 +17,5 @@ services:
       - ./data/.users.example:/tmp/passwd
       - ./data/opendkim/domainkey:/etc/opendkim/domainkey
       # this is for dev purpose only, the scripts are being copied by the dockerfile build
-      - ./docker/parse_resty_auto_ssl.py:/root/parse_resty_auto_ssl.py
+      - ./docker/map_ssl.py:/root/map_ssl.py
       - ./docker/setup.sh:/root/setup.sh
-       # example to re use let's encrypt certificates
-       # you should re use the certificate volume instead
-      - ./data/restry-auto-ssl/example01.com:/etc/resty-auto-ssl/storage/file/example01.com%3Alatest
-      - ./data/restry-auto-ssl/example02.com:/etc/resty-auto-ssl/storage/file/example02.com%3Alatest
