@@ -49,7 +49,7 @@ docker exec -it postfix sh
 
 # After the setup we launch the service in this order
 syslogd # optional to capture opemdkim logs
-opemdkim # start the opmkdim service
+opendkim # start the opmkdim service
 postfix start # to start postfix
 ```
 
