@@ -56,7 +56,7 @@ postfix start # to start postfix
 You can check if the services started properly by tailing the logs:
 ```BASH
 tail -f /var/log/messages # sys log where you can find details about openkdim service
-tail -f /var/log/postfix
+tail -f /var/log/postfix.log
 ```
 
 ## Setting up your DNS records:
