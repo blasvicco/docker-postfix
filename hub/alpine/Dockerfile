@@ -1,4 +1,4 @@
-From alpine:latest
+From alpine:3.19
 
 # Defining packages to install
 ENV ESSENTIAL_PACKAGES="python3 postfix opendkim opendkim-utils" \
